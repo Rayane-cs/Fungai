@@ -143,12 +143,14 @@ export default function Navbar({ logoSrc }: NavbarProps) {
         >
           Scan
         </Link>
-        <Link
-          to="/history"
-          className={`font-heading text-lg transition-colors hover:opacity-70 ${isActive('/history') ? 'text-[#013220]' : 'text-black'}`}
-        >
-          History
-        </Link>
+        {user && (
+          <Link
+            to="/history"
+            className={`font-heading text-lg transition-colors hover:opacity-70 ${isActive('/history') ? 'text-[#013220]' : 'text-black'}`}
+          >
+            History
+          </Link>
+        )}
         <a
           href="/#about"
           className="font-heading text-lg text-black transition-colors hover:opacity-70"

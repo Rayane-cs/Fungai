@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react'
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import HeroSection from './components/HeroSection'
 import Navbar from './components/Navbar'
 import LoadingScreen from './components/LoadingScreen'
@@ -14,6 +14,14 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const Scan = lazy(() => import('./pages/Scan'))
 const History = lazy(() => import('./pages/History'))
 const Profile = lazy(() => import('./pages/Profile'))
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const user = localStorage.getItem('user')
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+  return <>{children}</>
+}
 
 function Home() {
   return (
@@ -40,8 +48,8 @@ function AppContent() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/scan" element={<Scan />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
+          <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
         </Routes>
       </Suspense>
     </main>

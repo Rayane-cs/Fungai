@@ -6,8 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ScatterChart, Scatter, PieChart, Pie, Cell
 } from "recharts";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { generateScanPDF } from "../utils/pdfGenerator";
 
 interface Detection {
   label: string;
@@ -66,29 +65,10 @@ function ScanModal({ scan, onClose }: { scan: ScanItem; onClose: () => void }) {
 
   // PDF download
   const downloadPDF = async () => {
-    if (!modalRef.current) return;
     try {
-      const canvas = await html2canvas(modalRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#F5F0E6",
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgWidth = 210;
-      const pageHeight = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      pdf.save(`fungai-scan-${scan.id.slice(0, 8)}.pdf`);
+      const userStr = localStorage.getItem("user");
+      const userName = userStr ? JSON.parse(userStr).username : undefined;
+      await generateScanPDF(scan, userName);
     } catch (err) {
       console.error("PDF generation failed:", err);
       alert("Failed to generate PDF.");
@@ -317,12 +297,18 @@ export default function History() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedScan, setSelectedScan] = useState<ScanItem | null>(null);
+  const [scanToDelete, setScanToDelete] = useState<string | null>(null);
+
+  const getUserId = () => {
+    const userStr = localStorage.getItem("user");
+    return userStr ? JSON.parse(userStr).id : (localStorage.getItem("user_id") || "anonymous");
+  };
 
   const fetchHistory = async () => {
     try {
       const response = await fetch(`${API_URL}/api/history`, {
         headers: {
-          "X-User-ID": localStorage.getItem("user_id") || "anonymous",
+          "X-User-ID": getUserId(),
         },
       });
 
@@ -343,15 +329,19 @@ export default function History() {
     fetchHistory();
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this scan?")) return;
+  const handleDelete = (id: string) => {
+    setScanToDelete(id);
+  };
 
-    setDeletingId(id);
+  const confirmDelete = async () => {
+    if (!scanToDelete) return;
+
+    setDeletingId(scanToDelete);
     try {
-      const response = await fetch(`${API_URL}/api/history/${id}`, {
+      const response = await fetch(`${API_URL}/api/history/${scanToDelete}`, {
         method: "DELETE",
         headers: {
-          "X-User-ID": localStorage.getItem("user_id") || "anonymous",
+          "X-User-ID": getUserId(),
         },
       });
 
@@ -359,7 +349,8 @@ export default function History() {
         throw new Error("Failed to delete scan");
       }
 
-      setScans(scans.filter((scan) => scan.id !== id));
+      setScans(scans.filter((scan) => scan.id !== scanToDelete));
+      setScanToDelete(null);
     } catch (err) {
       alert("Failed to delete scan. Please try again.");
     } finally {
@@ -531,6 +522,52 @@ export default function History() {
             scan={selectedScan}
             onClose={() => setSelectedScan(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {scanToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setScanToDelete(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-3xl border border-black/10 bg-[#F5F0E6] p-8 shadow-2xl text-center"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100">
+                <svg className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h3 className="font-heading text-2xl text-black mb-2">Delete Scan?</h3>
+              <p className="font-body text-black/60 mb-6">
+                Are you sure you want to delete this scan? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setScanToDelete(null)}
+                  className="font-heading flex-1 rounded-xl border-2 border-black/20 py-3 text-black transition-all hover:bg-black/5"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deletingId !== null}
+                  className="font-heading flex-1 rounded-xl bg-red-500 py-3 text-white transition-all hover:bg-red-600 disabled:opacity-70"
+                >
+                  {deletingId ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart,
   Bar,
@@ -14,9 +14,9 @@ import {
   ScatterChart,
   Scatter,
 } from "recharts";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { LoadingSpinner } from "../components/Skeleton";
+import { Link, useNavigate } from "react-router-dom";
+import { generateScanPDF } from "../utils/pdfGenerator";
 
 interface Detection {
   label: string;
@@ -46,8 +46,41 @@ export default function Scan() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const resultsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const navigate = useNavigate();
+
+  // Attach stream to video element after it mounts
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraActive]);
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!localStorage.getItem("user")) {
+      setShowAuthModal(true);
+    }
+  }, []);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -75,11 +108,13 @@ export default function Scan() {
       setError("Please upload an image file (JPG, PNG, or WebP)");
       return;
     }
-    
+
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
     setError(null);
     setResult(null);
+    // Stop camera if active so we don't have two sources
+    if (cameraActive) stopCamera();
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,9 +123,95 @@ export default function Scan() {
     }
   };
 
+  const enumerateDevices = async () => {
+    try {
+      // Request permission first so labels are available
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === "videoinput");
+      setVideoDevices(videoInputs);
+      if (videoInputs.length > 0 && !selectedDeviceId) {
+        setSelectedDeviceId(videoInputs[0].deviceId);
+      }
+    } catch {
+      // ignore enumeration errors
+    }
+  };
+
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      await enumerateDevices();
+
+      const constraints: MediaStreamConstraints = {
+        video: selectedDeviceId
+          ? { deviceId: { exact: selectedDeviceId } }
+          : true,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      setCameraActive(true);
+      setError(null);
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      setResult(null);
+    } catch (err) {
+      console.error("Camera error:", err);
+      setCameraError(
+        "Could not access camera. Please allow camera permissions and ensure no other app is using it."
+      );
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  const captureFromCamera = (): File | null => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !cameraActive) return null;
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const byteString = atob(dataUrl.split(",")[1]);
+    const mime = dataUrl.split(",")[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new File([ab], `microscope-capture-${Date.now()}.jpg`, { type: mime });
+  };
+
   const handleScan = async () => {
-    if (!selectedFile) {
-      setError("Please select an image first");
+    let file = selectedFile;
+    if (cameraActive) {
+      const captured = captureFromCamera();
+      if (!captured) {
+        setError("Failed to capture image from camera.");
+        return;
+      }
+      file = captured;
+      setSelectedFile(captured);
+      setPreviewUrl(URL.createObjectURL(captured));
+    }
+
+    if (!file) {
+      setError("Please select an image or start the camera first");
       return;
     }
 
@@ -98,14 +219,17 @@ export default function Scan() {
     setError(null);
 
     const formData = new FormData();
-    formData.append("image", selectedFile);
+    formData.append("image", file);
 
     try {
+      const userStr = localStorage.getItem("user");
+      const userId = userStr ? JSON.parse(userStr).id : (localStorage.getItem("user_id") || "anonymous");
+
       const response = await fetch(`${API_URL}/api/detect`, {
         method: "POST",
         body: formData,
         headers: {
-          "X-User-ID": localStorage.getItem("user_id") || "anonymous",
+          "X-User-ID": userId,
         },
       });
 
@@ -134,37 +258,11 @@ export default function Scan() {
   };
 
   const downloadPDF = async () => {
-    if (!resultsRef.current || !result) return;
-
+    if (!result) return;
     try {
-      const canvas = await html2canvas(resultsRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#F5F0E6",
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      // Add extra pages if content is long
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`fungai-scan-${result.id.slice(0, 8)}.pdf`);
+      const userStr = localStorage.getItem("user");
+      const userName = userStr ? JSON.parse(userStr).username : undefined;
+      await generateScanPDF(result, userName);
     } catch (err) {
       console.error("PDF generation failed:", err);
       alert("Failed to generate PDF. Please try again.");
@@ -211,7 +309,7 @@ export default function Scan() {
   const confidenceData = getConfidenceData();
 
   return (
-    <div className="min-h-screen bg-[#F5F0E6] pb-20">
+    <div className="min-h-screen bg-[#F5F0E6] pb-20 pt-20">
       {/* Header */}
       <div className="border-b border-black/10 bg-white/50 px-6 py-8 backdrop-blur-sm">
         <div className="mx-auto max-w-6xl">
@@ -231,48 +329,141 @@ export default function Scan() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`cursor-pointer rounded-3xl border-2 border-dashed p-12 text-center transition-all ${
-              dragActive
-                ? "border-[#013220] bg-[#013220]/5"
-                : "border-black/20 hover:border-[#013220]/50 hover:bg-black/5"
-            }`}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleFileInput}
-              className="hidden"
-            />
-            
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-[#013220]/10">
-              <svg
-                className="h-10 w-10 text-[#013220]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+          <div className="flex flex-col gap-6 lg:flex-row">
+            {/* Upload dropzone */}
+            <div className="flex-1">
+              <div
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`cursor-pointer rounded-3xl border-2 border-dashed p-12 text-center transition-all h-full flex flex-col items-center justify-center ${
+                  dragActive
+                    ? "border-[#013220] bg-[#013220]/5"
+                    : "border-black/20 hover:border-[#013220]/50 hover:bg-black/5"
+                }`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileInput}
+                  className="hidden"
                 />
-              </svg>
+
+                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-[#013220]/10">
+                  <svg
+                    className="h-10 w-10 text-[#013220]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+
+                <h3 className="font-heading text-xl text-black">
+                  Drop your image here, or click to browse
+                </h3>
+                <p className="font-body mt-2 text-sm text-black/60">
+                  Supports JPG, PNG, WebP up to 10MB
+                </p>
+              </div>
             </div>
-            
-            <h3 className="font-heading text-xl text-black">
-              Drop your image here, or click to browse
-            </h3>
-            <p className="font-body mt-2 text-sm text-black/60">
-              Supports JPG, PNG, WebP up to 10MB
-            </p>
+
+            {/* Microscope Camera Feed */}
+            <div className="flex-1">
+              <div className="relative overflow-hidden rounded-2xl border border-black/10 bg-white p-4 h-full flex flex-col">
+                <div className="flex items-center justify-between mb-3 gap-3">
+                  <p className="font-body text-sm text-black/60">
+                    Microscope Camera
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {videoDevices.length > 1 && (
+                      <select
+                        value={selectedDeviceId}
+                        onChange={(e) => {
+                          setSelectedDeviceId(e.target.value);
+                          if (cameraActive) {
+                            stopCamera();
+                            setTimeout(() => startCamera(), 200);
+                          }
+                        }}
+                        className="font-body text-xs rounded-lg border border-black/10 bg-[#F5F0E6] px-2 py-1.5 text-black/70 outline-none focus:border-[#013220]"
+                      >
+                        {videoDevices.map((d) => (
+                          <option key={d.deviceId} value={d.deviceId}>
+                            {d.label || `Camera ${videoDevices.indexOf(d) + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cameraActive ? stopCamera() : startCamera();
+                      }}
+                      className={`font-heading text-xs px-3 py-1.5 rounded-lg transition-all ${
+                        cameraActive
+                          ? "bg-red-100 text-red-600 hover:bg-red-200"
+                          : "bg-[#013220]/10 text-[#013220] hover:bg-[#013220]/20"
+                      }`}
+                    >
+                      {cameraActive ? "Stop Camera" : "Start Camera"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative flex items-center justify-center bg-[#F5F0E6] rounded-xl overflow-hidden h-[320px]">
+                  {cameraActive ? (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="absolute inset-0 w-full h-full object-contain rounded-xl"
+                    />
+                  ) : previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="absolute inset-0 w-full h-full object-contain rounded-xl"
+                    />
+                  ) : (
+                    <div className="text-center p-8">
+                      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#013220]/10">
+                        <svg
+                          className="h-8 w-8 text-[#013220]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
+                      <p className="font-body text-sm text-black/40">
+                        Click "Start Camera" to begin live preview
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {cameraError && (
+                  <p className="mt-2 text-xs text-red-500">{cameraError}</p>
+                )}
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -285,59 +476,49 @@ export default function Scan() {
             </motion.div>
           )}
 
-          {previewUrl && (
+          {(previewUrl || cameraActive) && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
               className="mt-6"
             >
-              <div className="relative overflow-hidden rounded-2xl border border-black/10 bg-white p-4">
-                <p className="font-body mb-4 text-sm text-black/60">
-                  Selected: {selectedFile?.name}
-                </p>
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="mx-auto max-h-[400px] rounded-xl object-contain"
-                />
-                
-                <div className="mt-4 flex gap-4">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleScan();
-                    }}
-                    disabled={isScanning}
-                    className="font-heading flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#013220] py-4 text-white transition-all hover:bg-[#1a3d2e] hover:scale-[1.02] disabled:opacity-70"
-                  >
-                    {isScanning ? (
-                      <>
-                        <LoadingSpinner size="sm" />
-                        <span>Scanning...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        Scan Image
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFile(null);
-                      setPreviewUrl(null);
-                      setResult(null);
-                    }}
-                    disabled={isScanning}
-                    className="font-heading rounded-xl border-2 border-black/20 px-6 py-4 text-black transition-all hover:bg-black/5"
-                  >
-                    Clear
-                  </button>
-                </div>
+              <div className="flex gap-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleScan();
+                  }}
+                  disabled={isScanning}
+                  className="font-heading flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#013220] py-4 text-white transition-all hover:bg-[#1a3d2e] hover:scale-[1.02] disabled:opacity-70"
+                >
+                  {isScanning ? (
+                    <>
+                      <LoadingSpinner size="sm" />
+                      <span>Scanning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      {cameraActive ? "Capture & Scan" : "Scan Image"}
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedFile(null);
+                    setPreviewUrl(null);
+                    setResult(null);
+                    if (cameraActive) stopCamera();
+                  }}
+                  disabled={isScanning}
+                  className="font-heading rounded-xl border-2 border-black/20 px-6 py-4 text-black transition-all hover:bg-black/5"
+                >
+                  Clear
+                </button>
               </div>
             </motion.div>
           )}
@@ -464,7 +645,7 @@ export default function Scan() {
                               <div className="rounded-lg bg-[#F5F0E6] p-3 border border-black/10">
                                 <p className="font-body text-sm">{payload[0].payload.label}</p>
                                 <p className="font-heading text-[#013220]">
-                                  {payload[0].value?.toFixed(1)}%
+                                  {typeof payload[0].value === "number" ? payload[0].value.toFixed(1) : payload[0].value}%
                                 </p>
                               </div>
                             );
@@ -490,12 +671,12 @@ export default function Scan() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) => `${name} ${percent ? (percent * 100).toFixed(0) : 0}%`}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="count"
                     >
-                      {classCounts.map((entry, index) => (
+                      {classCounts.map((_entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -542,6 +723,62 @@ export default function Scan() {
           </motion.div>
         )}
       </div>
+
+      {/* Auth Required Modal */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowAuthModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-3xl border border-black/10 bg-[#F5F0E6] p-8 shadow-2xl text-center"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#013220]/10">
+                <svg className="h-8 w-8 text-[#013220]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h3 className="font-heading text-2xl text-black mb-2">Account Required</h3>
+              <p className="font-body text-black/60 mb-6">
+                You need an account to use the scan feature and save your results.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  to="/login"
+                  onClick={() => setShowAuthModal(false)}
+                  className="font-heading block w-full rounded-xl bg-[#013220] py-3 text-white transition-all hover:bg-[#1a3d2e]"
+                >
+                  Log In
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setShowAuthModal(false)}
+                  className="font-heading block w-full rounded-xl border-2 border-[#013220] py-3 text-[#013220] transition-all hover:bg-[#013220]/5"
+                >
+                  Create New Account
+                </Link>
+                <button
+                  onClick={() => navigate("/")}
+                  className="font-body text-sm text-black/50 transition-colors hover:text-black"
+                >
+                  Go Home
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hidden canvas for camera capture */}
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }

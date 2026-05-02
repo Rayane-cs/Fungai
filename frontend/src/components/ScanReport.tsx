@@ -28,7 +28,6 @@ interface ScanResult {
 interface ScanReportProps {
   result: ScanResult;
   userName?: string;
-  onImageReady?: (dataUrl: string) => void;
 }
 
 const DISEASE_INFO: Record<string, string> = {
@@ -90,17 +89,7 @@ const TREATMENTS: Record<string, string[]> = {
   ],
 };
 
-const DISEASE_REFERENCES: Record<string, string[]> = {
-  "Powdery Mildew": ["- Bennett et al. (2020) - Powdery Mildew Management in Horticultural Crops"],
-  "Leaf Rust": ["- Bolton et al. (2018) - Rust Diseases of Cereals and Their Control"],
-  "Puccinia": ["- Chen et al. (2019) - Puccinia Species and Rust Disease Epidemiology"],
-  "Black Spot": ["- Horst & Cloyd (2007) - Compendium of Rose Diseases and Pests"],
-  "Downy Mildew": ["- Koroch et al. (2018) - Downy Mildew Disease of Basil"],
-  "Fusarium": ["- Leslie & Summerell (2006) - The Fusarium Laboratory Manual"],
-  "Alternaria": ["- Simmons (2007) - Alternaria Identification Manual and Atlas"],
-};
-
-export function ScanReport({ result, userName, onImageReady }: ScanReportProps) {
+export function ScanReport({ result, userName }: ScanReportProps) {
   const reportRef = useRef<HTMLDivElement>(null);
   const rid = result.id || "unknown";
   const detections = result.detections || [];
@@ -137,8 +126,6 @@ export function ScanReport({ result, userName, onImageReady }: ScanReportProps) 
       return acc;
     }, {} as Record<string, number>)
   ).map(([label, value]) => ({ label, value }));
-
-  const maxClassValue = Math.max(...classFreq.map(c => c.value), 1);
 
   // Confidence data - ALL detections
   const confData = detections.map((d, i) => ({
@@ -429,8 +416,7 @@ export function ScanReport({ result, userName, onImageReady }: ScanReportProps) 
                             maxTicksLimit: 6
                           },
                           grid: {
-                            color: '#e5e7eb',
-                            borderDash: [4, 4]
+                            color: '#e5e7eb'
                           }
                         },
                         x: {

@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import { LoadingSpinner } from "../components/Skeleton";
 import { Link, useNavigate } from "react-router-dom";
-import { generateScanPDF } from "../utils/pdfGenerator";
+import { generateScanPDFFromComponent } from "../utils/generatePDF";
 
 interface Detection {
   label: string;
@@ -240,6 +240,9 @@ export default function Scan() {
       const data = await response.json();
       setResult(data);
       
+      // Save to localStorage for debug page
+      localStorage.setItem("last_scan_result", JSON.stringify(data));
+      
       // Store user ID for history
       if (!localStorage.getItem("user_id")) {
         localStorage.setItem("user_id", "user_" + Date.now());
@@ -257,12 +260,28 @@ export default function Scan() {
     }
   };
 
+  const showPDF = async () => {
+    if (!result) return;
+    try {
+      const userStr = localStorage.getItem("user");
+      const userName = userStr ? JSON.parse(userStr).username : undefined;
+      const pdfBytes = await generateScanPDFFromComponent(result, userName, false);
+      // Create blob and open in new tab
+      const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      alert("Failed to generate PDF. Please try again.");
+    }
+  };
+
   const downloadPDF = async () => {
     if (!result) return;
     try {
       const userStr = localStorage.getItem("user");
       const userName = userStr ? JSON.parse(userStr).username : undefined;
-      await generateScanPDF(result, userName);
+      await generateScanPDFFromComponent(result, userName, true);
     } catch (err) {
       console.error("PDF generation failed:", err);
       alert("Failed to generate PDF. Please try again.");
@@ -541,15 +560,27 @@ export default function Scan() {
                 </p>
               </div>
               
-              <button
-                onClick={downloadPDF}
-                className="font-heading flex items-center gap-2 rounded-xl bg-black px-6 py-3 text-white transition-all hover:bg-black/80"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Download PDF
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={showPDF}
+                  className="font-heading flex items-center gap-2 rounded-xl border-2 border-black px-4 py-3 text-black transition-all hover:bg-black/5"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  Show PDF
+                </button>
+                <button
+                  onClick={downloadPDF}
+                  className="font-heading flex items-center gap-2 rounded-xl bg-black px-6 py-3 text-white transition-all hover:bg-black/80"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Download PDF
+                </button>
+              </div>
             </div>
 
             {/* Summary Cards */}
@@ -576,7 +607,7 @@ export default function Scan() {
                 <h3 className="font-heading mb-4 text-xl text-black">Original Image</h3>
                 {result.original_image_base64 ? (
                   <img
-                    src={`data:image/png;base64,${result.original_image_base64}`}
+                    src={`data:image/jpeg;base64,${result.original_image_base64}`}
                     alt="Original"
                     className="mx-auto max-h-[600px] w-auto rounded-xl"
                   />
@@ -587,7 +618,7 @@ export default function Scan() {
               <div className="rounded-2xl border border-black/10 bg-white p-6">
                 <h3 className="font-heading mb-4 text-xl text-black">Detected Mushrooms</h3>
                 <img
-                  src={`data:image/png;base64,${result.annotated_image_base64}`}
+                  src={`data:image/jpeg;base64,${result.annotated_image_base64}`}
                   alt="Detection results"
                   className="mx-auto max-h-[600px] w-auto rounded-xl"
                 />

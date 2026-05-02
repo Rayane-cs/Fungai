@@ -74,6 +74,7 @@ def health_check():
 
 @app.route('/api/detect', methods=['POST'])
 def detect():
+    db = None
     try:
         # Get user ID from session or generate temporary
         user_id = request.headers.get('X-User-ID', str(uuid.uuid4()))
@@ -95,6 +96,7 @@ def detect():
             image = image.convert('RGB')
         
         # Run YOLO detection
+        print(f"Running detection for user {user_id}, file: {file.filename}")
         yolo_model = get_model()
         results = yolo_model(np.array(image))
         
@@ -115,20 +117,30 @@ def detect():
                     "class_id": class_id
                 })
         
+        print(f"Detected {len(detections)} objects")
+        
         # Draw boxes on image
         annotated_image = draw_boxes(image.copy(), detections)
         
-        # Convert original image to base64 (for thumbnail)
+        # Resize images to reduce base64 size (max 800px dimension)
+        max_size = (800, 800)
+        
+        # Convert original image to base64 (resized)
+        original_resized = image.copy()
+        original_resized.thumbnail(max_size, Image.Resampling.LANCZOS)
         original_buffered = BytesIO()
-        image.save(original_buffered, format="PNG")
+        original_resized.save(original_buffered, format="JPEG", quality=85)
         original_image_base64 = base64.b64encode(original_buffered.getvalue()).decode('utf-8')
         
-        # Convert annotated image to base64
+        # Convert annotated image to base64 (resized)
+        annotated_resized = annotated_image.copy()
+        annotated_resized.thumbnail(max_size, Image.Resampling.LANCZOS)
         annotated_buffered = BytesIO()
-        annotated_image.save(annotated_buffered, format="PNG")
+        annotated_resized.save(annotated_buffered, format="JPEG", quality=85)
         annotated_image_base64 = base64.b64encode(annotated_buffered.getvalue()).decode('utf-8')
         
         # Save to database
+        print("Saving to database...")
         db = SessionLocal()
         scan = Scan(
             user_id=user_id,
@@ -140,7 +152,7 @@ def detect():
         db.add(scan)
         db.commit()
         db.refresh(scan)
-        db.close()
+        print(f"Scan saved with ID: {scan.id}")
         
         return jsonify({
             "id": scan.id,
@@ -157,6 +169,9 @@ def detect():
         print(f"Error during detection: {str(e)}")
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+    finally:
+        if db:
+            db.close()
 
 @app.route('/api/history', methods=['GET'])
 def get_history():

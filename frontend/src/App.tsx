@@ -14,6 +14,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const Scan = lazy(() => import('./pages/Scan'))
 const History = lazy(() => import('./pages/History'))
 const Profile = lazy(() => import('./pages/Profile'))
+const ScanReportDebug = lazy(() => import('./pages/ScanReportDebug'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = localStorage.getItem('user')
@@ -37,10 +38,11 @@ function Home() {
 function AppContent() {
   const location = useLocation()
   const isAuthPage = ['/login', '/register', '/forgot-password'].includes(location.pathname)
+  const hideNavbar = isAuthPage
 
   return (
     <main className="min-h-screen bg-[#F5F0E6]">
-      {!isAuthPage && <Navbar logoSrc={logo} />}
+      {!hideNavbar && <Navbar logoSrc={logo} />}
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -50,7 +52,8 @@ function AppContent() {
           <Route path="/scan" element={<Scan />} />
           <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
           <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
-        </Routes>
+          <Route path="/scan-report-debug" element={<ScanReportDebug />} />
+                  </Routes>
       </Suspense>
     </main>
   )

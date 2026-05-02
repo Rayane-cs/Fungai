@@ -108,6 +108,18 @@ export default function Navbar({ logoSrc }: NavbarProps) {
     navigate("/");
   };
 
+  // Handle scroll to section for hash links
+  useEffect(() => {
+    if (location.hash) {
+      const element = document.querySelector(location.hash);
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    }
+  }, [location]);
+
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
@@ -151,18 +163,18 @@ export default function Navbar({ logoSrc }: NavbarProps) {
             History
           </Link>
         )}
-        <a
-          href="/#about"
-          className="font-heading text-lg text-black transition-colors hover:opacity-70"
+        <Link
+          to="/#about"
+          className={`font-heading text-lg transition-colors hover:opacity-70 ${isActive('/#about') ? 'text-[#013220]' : 'text-black'}`}
         >
           About
-        </a>
-        <a
-          href="/#contact"
-          className="font-heading text-lg text-black transition-colors hover:opacity-70"
+        </Link>
+        <Link
+          to="/#contact"
+          className={`font-heading text-lg transition-colors hover:opacity-70 ${isActive('/#contact') ? 'text-[#013220]' : 'text-black'}`}
         >
           Contact
-        </a>
+        </Link>
       </div>
 
       {/* Auth Buttons or Profile */}

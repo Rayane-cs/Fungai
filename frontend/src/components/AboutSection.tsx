@@ -207,29 +207,15 @@ export default function AboutSection() {
                 </a>
               </div>
             </div>
-            <form className="space-y-4">
-              <input
-                type="text"
-                placeholder="Your Name"
-                className="font-body w-full rounded-xl bg-white/10 px-4 py-3 text-white placeholder-white/50 outline-none transition-all focus:bg-white/20"
-              />
-              <input
-                type="email"
-                placeholder="Your Email"
-                className="font-body w-full rounded-xl bg-white/10 px-4 py-3 text-white placeholder-white/50 outline-none transition-all focus:bg-white/20"
-              />
-              <textarea
-                placeholder="Your Message"
-                rows={4}
-                className="font-body w-full rounded-xl bg-white/10 px-4 py-3 text-white placeholder-white/50 outline-none transition-all focus:bg-white/20 resize-none"
-              />
-              <button
-                type="submit"
-                className="font-heading w-full rounded-xl bg-white py-3 text-[#013220] font-semibold transition-all hover:bg-[#F5F0E6]"
-              >
-                Send Message
-              </button>
-            </form>
+            <div className="flex items-center justify-center">
+              <div className="text-center text-white/80">
+                <p className="font-body text-sm mb-2">Visit us at</p>
+                <p className="font-heading text-lg">Chlef, Algeria</p>
+                <p className="font-body text-sm mt-4 text-white/60">
+                  Available Monday - Friday<br />9:00 AM - 5:00 PM
+                </p>
+              </div>
+            </div>
           </div>
         </motion.div>
       </div>

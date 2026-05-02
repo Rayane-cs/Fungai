@@ -133,7 +133,7 @@ function ScanModal({ scan, onClose }: { scan: ScanItem; onClose: () => void }) {
             <h3 className="font-heading mb-4 text-xl text-black">Original Image</h3>
             {scan.original_image ? (
               <img
-                src={`data:image/png;base64,${scan.original_image}`}
+                src={`data:image/jpeg;base64,${scan.original_image}`}
                 alt="Original"
                 className="w-full h-auto rounded-xl"
               />
@@ -147,7 +147,7 @@ function ScanModal({ scan, onClose }: { scan: ScanItem; onClose: () => void }) {
             <h3 className="font-heading mb-4 text-xl text-black">Detected Mushrooms</h3>
             {scan.annotated_image ? (
               <img
-                src={`data:image/png;base64,${scan.annotated_image}`}
+                src={`data:image/jpeg;base64,${scan.annotated_image}`}
                 alt="Annotated"
                 className="w-full h-auto rounded-xl"
               />
@@ -453,7 +453,7 @@ export default function History() {
                 <div className="relative aspect-[4/3] bg-[#F5F0E6] overflow-hidden">
                   {scan.original_image ? (
                     <img
-                      src={`data:image/png;base64,${scan.original_image}`}
+                      src={`data:image/jpeg;base64,${scan.original_image}`}
                       alt={scan.filename}
                       className="h-full w-full object-cover"
                     />

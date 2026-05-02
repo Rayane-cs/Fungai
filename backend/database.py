@@ -40,11 +40,12 @@ class DatabaseManager:
     
     def _get_connection_url(self) -> str:
         """Build MySQL connection URL from environment or defaults"""
-        db_user = os.getenv('DB_USER', 'root')
-        db_password = os.getenv('DB_PASSWORD', '')
-        db_host = os.getenv('DB_HOST', 'localhost')
-        db_port = os.getenv('DB_PORT', '3306')
-        db_name = os.getenv('DB_NAME', 'fungai')
+        # Support both Railway naming (MYSQL*) and standard naming (DB_*)
+        db_user = os.getenv('MYSQLUSER') or os.getenv('DB_USER', 'root')
+        db_password = os.getenv('MYSQLPASSWORD') or os.getenv('MYSQL_ROOT_PASSWORD') or os.getenv('DB_PASSWORD', '')
+        db_host = os.getenv('MYSQLHOST') or os.getenv('DB_HOST', 'localhost')
+        db_port = os.getenv('MYSQLPORT') or os.getenv('DB_PORT', '3306')
+        db_name = os.getenv('MYSQLDATABASE') or os.getenv('DB_NAME', 'fungai')
         
         if db_password:
             return f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
@@ -52,10 +53,10 @@ class DatabaseManager:
     
     def _get_server_url(self) -> str:
         """Get server connection URL without database"""
-        db_user = os.getenv('DB_USER', 'root')
-        db_password = os.getenv('DB_PASSWORD', '')
-        db_host = os.getenv('DB_HOST', 'localhost')
-        db_port = os.getenv('DB_PORT', '3306')
+        db_user = os.getenv('MYSQLUSER') or os.getenv('DB_USER', 'root')
+        db_password = os.getenv('MYSQLPASSWORD') or os.getenv('MYSQL_ROOT_PASSWORD') or os.getenv('DB_PASSWORD', '')
+        db_host = os.getenv('MYSQLHOST') or os.getenv('DB_HOST', 'localhost')
+        db_port = os.getenv('MYSQLPORT') or os.getenv('DB_PORT', '3306')
         
         if db_password:
             return f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}"

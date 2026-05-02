@@ -557,7 +557,6 @@ export function ScanReport({ result, userName, onImageReady }: ScanReportProps) 
         <h3 className="text-[#013220] font-bold text-[18px] mb-1">References</h3>
         <div className="w-[90mm] h-[2px] bg-[#013220] mb-2" />
         <div className="text-xs text-gray-600 leading-snug">
-          - PlantVillage Dataset - Hughes et al. (2015)<br/>
           - YOLO: Real-Time Object Detection - Redmon et al.
         </div>
 

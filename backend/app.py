@@ -21,9 +21,12 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'dev-secret-change-in
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=7)
 jwt = JWTManager(app)
 
-# CORS setup
-cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5173').split(',')
-CORS(app, origins=cors_origins)
+# CORS setup - allow all origins for deployment flexibility
+cors_origins = os.getenv('CORS_ORIGINS', '*')
+if cors_origins == '*':
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
+else:
+    CORS(app, origins=cors_origins.split(','))
 
 # Database setup - imports database manager which auto-initializes MySQL
 from database import db_manager, Scan, User

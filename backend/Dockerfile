@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Install system dependencies for OpenCV and image processing
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
@@ -24,8 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Expose port
+# Expose port (Railway assigns PORT env var)
 EXPOSE 8080
 
-# Run with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--timeout", "120", "app:app"]
+# Run with gunicorn using Railway's PORT env variable
+CMD gunicorn --bind 0.0.0.0:${PORT:-8080} --timeout 120 app:app

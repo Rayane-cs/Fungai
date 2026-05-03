@@ -56,26 +56,6 @@ class DatabaseManager:
         if db_password:
             return f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
         return f"mysql+pymysql://{db_user}@{db_host}:{db_port}/{db_name}"
-    
-    def _get_server_url(self) -> str:
-        """Get server connection URL without database"""
-        # Use Railway's full URL if available
-        mysql_url = os.getenv('MYSQL_URL') or os.getenv('MYSQL_PUBLIC_URL')
-        if mysql_url:
-            # Remove database name from URL for server connection
-            url = mysql_url.replace('mysql://', 'mysql+pymysql://', 1)
-            # Remove everything after the last /
-            return url.rsplit('/', 1)[0]
-        
-        # Support both Railway naming (MYSQL*) and standard naming (DB_*)
-        db_user = os.getenv('MYSQLUSER') or os.getenv('DB_USER', 'root')
-        db_password = os.getenv('MYSQLPASSWORD') or os.getenv('MYSQL_ROOT_PASSWORD') or os.getenv('DB_PASSWORD', '')
-        db_host = os.getenv('MYSQLHOST') or os.getenv('DB_HOST', 'localhost')
-        db_port = os.getenv('MYSQLPORT') or os.getenv('DB_PORT', '3306')
-        
-        if db_password:
-            return f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}"
-        return f"mysql+pymysql://{db_user}@{db_host}:{db_port}"
 
     def _init_database(self):
         """Initialize database connection and create tables"""

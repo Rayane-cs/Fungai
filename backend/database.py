@@ -1,6 +1,7 @@
 import os
 import uuid
 from datetime import datetime
+from urllib.parse import unquote
 from sqlalchemy import create_engine, Column, String, DateTime, JSON, Text
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
@@ -43,8 +44,10 @@ class DatabaseManager:
         # Use Railway's full URL if available (preferred)
         mysql_url = os.getenv('MYSQL_URL') or os.getenv('MYSQL_PUBLIC_URL')
         if mysql_url:
-            # Convert mysql:// to mysql+pymysql://
-            return mysql_url.replace('mysql://', 'mysql+pymysql://', 1)
+            # Convert mysql:// to mysql+pymysql:// and URL-decode special chars
+            url = mysql_url.replace('mysql://', 'mysql+pymysql://', 1)
+            # URL decode any percent-encoded characters (like @, /, :, etc.)
+            return unquote(url)
         
         # Support both Railway naming (MYSQL*) and standard naming (DB_*)
         db_user = os.getenv('MYSQLUSER') or os.getenv('DB_USER', 'root')

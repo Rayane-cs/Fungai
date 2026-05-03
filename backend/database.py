@@ -60,8 +60,20 @@ class DatabaseManager:
     def _init_database(self):
         """Initialize database connection and create tables"""
         try:
+            connection_url = self._get_connection_url()
+            # Debug: print URL with masked password
+            masked_url = connection_url
+            if ':' in connection_url and '@' in connection_url:
+                # Extract and mask password from URL
+                parts = connection_url.split('@')
+                auth_part = parts[0]
+                if ':' in auth_part:
+                    protocol_and_user = auth_part.rsplit(':', 1)[0]
+                    masked_url = f"{protocol_and_user}:****@{parts[1]}"
+            print(f"Connecting to database: {masked_url}")
+            
             self.engine = create_engine(
-                self._get_connection_url(),
+                connection_url,
                 echo=os.getenv('DB_ECHO', 'false').lower() == 'true',
                 pool_pre_ping=True,
                 pool_recycle=3600

@@ -1,17 +1,20 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import bgImage from "../assets/bg.png";
 import logo from "../assets/logo.webp";
 import { LoadingSpinner } from "../components/Skeleton";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
 export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -49,7 +52,11 @@ export default function Register() {
       localStorage.setItem("user", JSON.stringify(data.user));
       navigate("/");
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      if (err.message === "Failed to fetch") {
+        setError("Server is unreachable. Please make sure the backend is running on " + API_URL);
+      } else {
+        setError(err.message || "Something went wrong");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -124,28 +131,48 @@ export default function Register() {
               <label className="font-body mb-2 block text-sm text-black/70">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="font-body w-full rounded-xl border border-black/20 bg-white/50 px-4 py-3 text-black placeholder-black/40 outline-none transition-all focus:border-[#013220] focus:bg-white"
-                placeholder="Create a password"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="font-body w-full rounded-xl border border-black/20 bg-white/50 px-4 py-3 pr-12 text-black placeholder-black/40 outline-none transition-all focus:border-[#013220] focus:bg-white"
+                  placeholder="Create a password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-black/40 hover:text-black/70 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             <div>
               <label className="font-body mb-2 block text-sm text-black/70">
                 Confirm Password
               </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="font-body w-full rounded-xl border border-black/20 bg-white/50 px-4 py-3 text-black placeholder-black/40 outline-none transition-all focus:border-[#013220] focus:bg-white"
-                placeholder="Confirm your password"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="font-body w-full rounded-xl border border-black/20 bg-white/50 px-4 py-3 pr-12 text-black placeholder-black/40 outline-none transition-all focus:border-[#013220] focus:bg-white"
+                  placeholder="Confirm your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-black/40 hover:text-black/70 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-start gap-2 pt-2">

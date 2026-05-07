@@ -25,7 +25,7 @@ interface ScanItem {
   detections?: Detection[];
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
 const COLORS = ["#013220", "#45FFB3", "#1a3d2e", "#2d5a4a", "#3d7a5a", "#4d9a6a"];
 

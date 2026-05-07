@@ -40,7 +40,11 @@ class DatabaseManager:
         self._init_database()
     
     def _get_connection_url(self) -> str:
-        """Build MySQL connection URL from environment or defaults"""
+        """Build database connection URL from environment or defaults"""
+        # Use SQLite for local development if specified
+        if os.getenv('USE_SQLITE', '').lower() == 'true':
+            return 'sqlite:///fungai.db'
+        
         # Use Railway's full URL if available (preferred)
         mysql_url = os.getenv('MYSQL_URL') or os.getenv('MYSQL_PUBLIC_URL')
         if mysql_url:

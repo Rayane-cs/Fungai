@@ -43,8 +43,12 @@ def get_model():
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
         print(f"Model file exists, size: {os.path.getsize(MODEL_PATH)} bytes")
-        model = YOLO(MODEL_PATH)
-        print(f"Model loaded successfully")
+        try:
+            model = YOLO(MODEL_PATH)
+            print(f"Model loaded successfully")
+        except Exception as e:
+            print(f"Failed to load YOLO model: {e}")
+            raise RuntimeError(f"Model load failed: {e}")
     return model
 
 def get_db():
@@ -144,18 +148,35 @@ def detect():
         
         # Save to database
         print("Saving to database...")
-        db = SessionLocal()
-        scan = Scan(
-            user_id=user_id,
-            filename=file.filename,
-            result_json=detections,
-            original_image_base64=original_image_base64,
-            annotated_image_base64=annotated_image_base64
-        )
-        db.add(scan)
-        db.commit()
-        db.refresh(scan)
-        print(f"Scan saved with ID: {scan.id}")
+        try:
+            db = SessionLocal()
+            scan = Scan(
+                user_id=user_id,
+                filename=file.filename,
+                result_json=detections,
+                original_image_base64=original_image_base64,
+                annotated_image_base64=annotated_image_base64
+            )
+            db.add(scan)
+            db.commit()
+            db.refresh(scan)
+            db.close()
+            print(f"Scan saved with ID: {scan.id}")
+        except Exception as db_err:
+            print(f"Database save failed: {db_err}")
+            import traceback
+            traceback.print_exc()
+            # Still return the detection result even if DB save fails
+            return jsonify({
+                "id": str(uuid.uuid4()),
+                "timestamp": datetime.utcnow().isoformat(),
+                "filename": file.filename,
+                "detections": detections,
+                "original_image_base64": original_image_base64,
+                "annotated_image_base64": annotated_image_base64,
+                "total_detections": len(detections),
+                "warning": f"Detection succeeded but DB save failed: {str(db_err)}"
+            })
         
         return jsonify({
             "id": scan.id,
@@ -172,9 +193,6 @@ def detect():
         print(f"Error during detection: {str(e)}")
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
-    finally:
-        if db:
-            db.close()
 
 @app.route('/api/history', methods=['GET'])
 def get_history():

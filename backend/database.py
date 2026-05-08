@@ -71,7 +71,6 @@ class DatabaseManager:
             # Debug: print URL with masked password
             masked_url = connection_url
             if ':' in connection_url and '@' in connection_url:
-                # Extract and mask password from URL
                 parts = connection_url.split('@')
                 auth_part = parts[0]
                 if ':' in auth_part:
@@ -89,11 +88,16 @@ class DatabaseManager:
             print("Database connected and tables ensured.")
             self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         except Exception as e:
-            print(f"Database initialization error: {e}")
-            raise
+            print(f"WARNING: Database initialization failed: {e}")
+            print("The API will run but data will NOT be persisted!")
+            print("To fix: Start MySQL or set USE_SQLITE=true in .env")
+            # Create a dummy session maker that will fail gracefully
+            self.SessionLocal = None
     
     def get_session(self) -> Session:
         """Get a new database session"""
+        if self.SessionLocal is None:
+            raise RuntimeError("Database not available. Set USE_SQLITE=true or start MySQL.")
         return self.SessionLocal()
     
     def close(self):

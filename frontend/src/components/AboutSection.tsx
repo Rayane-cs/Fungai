@@ -74,22 +74,16 @@ export default function AboutSection() {
                 <div>
                   <h3 className="font-heading mb-4 text-2xl text-black">Deep Learning Architecture</h3>
                   <p className="font-body mb-4 text-black/70">
-                    We evaluated multiple state-of-the-art models including YOLOv8n, DenseNet121, 
-                    EfficientNet-B0, ResNet, and VGG. DenseNet121 achieved the highest accuracy at 99.81%, 
-                    with transfer learning improving performance from 92% to 99.1%.
+                    We trained YOLOv8 using transfer learning on a custom Roboflow dataset of fungal plant infections, achieving a best mAP50 of 86.2% with 84.5% precision and 83.3% recall over 100 epochs.
                   </p>
                   <ul className="font-body space-y-2 text-black/70">
                     <li className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-[#013220]" />
-                      7 major pathogenic fungi detected
+                      4 major pathogenic fungi detected
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-[#013220]" />
-                      Fusarium, Rhizoctonia, Pythium, Phytophthora
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-[#013220]" />
-                      Alternaria, Verticillium, Spilocaea
+                      Fusarium, Alternaria, Aspergillus, Pinicellium
                     </li>
                   </ul>
                 </div>
@@ -97,7 +91,7 @@ export default function AboutSection() {
                   <div className="relative">
                     <div className="h-48 w-48 rounded-2xl bg-gradient-to-br from-[#013220]/10 to-[#013220]/5 flex items-center justify-center">
                       <div className="text-center">
-                        <span className="font-heading text-5xl font-bold text-[#013220]">99.8%</span>
+                        <span className="font-heading text-5xl font-bold text-[#013220]">86.2%</span>
                         <p className="font-body mt-2 text-sm text-black/60">Accuracy</p>
                       </div>
                     </div>
@@ -112,8 +106,7 @@ export default function AboutSection() {
                 <div>
                   <h3 className="font-heading mb-4 text-2xl text-black">Precision Agriculture for Algeria</h3>
                   <p className="font-body mb-4 text-black/70">
-                    Designed specifically for Algerian conditions, our platform addresses local challenges 
-                    including soil types and environmental settings. Outperforms traditional methods 
+                    Designed specifically for Algerian conditions, our platform addresses local challenges. Outperforms traditional methods 
                     (Visual: 40-60%, Microscopic: 70-80%) with AI-powered detection exceeding 99% accuracy.
                   </p>
                   <ul className="font-body space-y-2 text-black/70">
